@@ -1,51 +1,79 @@
-
-import sys
+#!/usr/bin/env python
 import rospy
 import actionlib
-import numpy as np
 from geodesy import utm
-import time
 import tf2_ros
 import tf2_geometry_msgs
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PoseStamped
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import String, Empty
 
-class gps_converter:
+class Waypoint(object):
+  def __init__(self, id, latitude, longitude):
+    self.id = id
+    self.latitude = latitude
+    self.longitude = longitude
+
+class GPSConverter(object):
 
   def __init__(self):
 
-    rospy.init_node('gps_converter_pub', anonymous=True)    
-    self.mb_client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
+    rospy.init_node('waypoint_coordinator', anonymous=True)
+
+    if not rospy.has_param("move_base_node"):
+      rospy.logerr("Missing parameter with move base node name")
+      return
+
+    # Initialize action server of move base
+    move_base_node_name = rospy.get_param("move_base_node")
+
+    self.mb_client = actionlib.SimpleActionClient(move_base_node_name, MoveBaseAction)
     self.mb_client.wait_for_server()
+
+    # Initialize tf
     self.tf_buffer = tf2_ros.Buffer()
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-    wp_file = sys.argv[1]
-    self.execute(wp_file)
 
-  def execute(self, wp_file):
-    with open(wp_file) as f:
-      lista = f.read().splitlines()
-    key = raw_input("Press Enter to continue...")
-    idx = 0
-    lat, lon = lista[idx].split()
-    lat = float(lat)
-    lon = float(lon)
-    while(key != "Q" and key != "q"):
-      if self.waypoint_pub(lat, lon):
-        if (len(lista) == idx + 1):
-          print "all waypoints sent"
-          exit()
-        idx = idx + 1
-        lat, lon = lista[idx].split()
-        lat = float(lat)
-        lon = float(lon)
-      key = raw_input("Press Enter to continue...")
-    exit()
+    # Variables
+    self.frame_id = rospy.get_param("goal_frame_id")
+    goal_sub_topic_name = rospy.get_param("goal_sub_topic_name")
+    goal_pub_topic_name = rospy.get_param("result_pub_topic_name")
+    self.waypoints_list = []
+    self.id = 0
+
+
+    # Publishers
+    # Publishes result of goal
+    self.goal_pub = rospy.Publisher(goal_pub_topic_name, String, queue_size=5)
+
+    # Subscribers
+    # Subscribes to goal requests
+    self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
+    self.reset_sub = rospy.Subscriber("reset_waypoints", Empty, self.resetCb)
+
+    self.rate = rospy.Rate(10)
+
+  def execute(self):
+    while not rospy.is_shutdown():
+      # Manage waypoint list
+      if len(self.waypoints_list) > 0:
+        # Pops the oldest goal to send to move base
+        curr_goal = self.waypoints_list.pop(0)
+        msg = "id:" + str(curr_goal.id) + ";latitude:" + str(curr_goal.latitude) + ";longitude:" + str(curr_goal.longitude)
+        rospy.loginfo(msg)
+        self.goal_pub.publish(String(data=msg))
+        result = self.waypoint_pub(curr_goal.latitude, curr_goal.longitude)
+        msg = "id:" + str(curr_goal.id) + ";result:" + str(result)
+        rospy.loginfo(msg)
+        self.goal_pub.publish(String(data=msg))
+      self.rate.sleep()
 
   def waypoint_pub(self, lat, lon):
     utm_conversion = utm.fromLatLong(lat,lon)
-    print(utm_conversion)
+    
+    rospy.logdebug(utm_conversion)
+    
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = "utm"
     goal.target_pose.header.stamp = rospy.Time.now()
@@ -55,7 +83,7 @@ class gps_converter:
     goal.target_pose.pose.orientation.w = 0.0
 
     try:
-      transform = self.tf_buffer.lookup_transform("map",
+      transform = self.tf_buffer.lookup_transform(self.frame_id,
                                        goal.target_pose.header.frame_id, #source frame
                                        rospy.Time(0), #get the tf at first available time
                                        rospy.Duration(2.0)) #wait for 1 second
@@ -68,20 +96,30 @@ class gps_converter:
       goal.target_pose.pose.orientation.y = 0.0
       goal.target_pose.pose.orientation.z = 0.0
       goal.target_pose.pose.orientation.w = 1.0
-      print "goal transformed\n", goal
+      rospy.loginfo("Goal transformed\n", goal)
+      # Sends the goal to the action server
       self.mb_client.send_goal(goal)
-      return True
+      # Waits for the server to finish performing the action.
+      self.mb_client.wait_for_result()
+      # Prints out the result of executing the action
+      return self.mb_client.get_result()
     except:
-      print "Couldnt find transform from utm to map"
-      return False
-    #exit()
+      rospy.logerr("Couldnt find transform from utm to " + self.frame_id)
+      return None
+  
+  def goalSubCb(self, data):
+    self.id += 1
+    new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude)
+    self.waypoints_list.append(new_waypoint)
 
-def main(args):
-  ic = gps_converter()
-  try:
-    rospy.spin()
-  except KeyboardInterrupt:
-    print("Shutting down")
+  def resetCb(self):
+    self.waypoints_list = []
+    self.mb_client.cancel_all_goals()
+
+
+def main():
+  ic = GPSConverter()
+  ic.execute()
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
