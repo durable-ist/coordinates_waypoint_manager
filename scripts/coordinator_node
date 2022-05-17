@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+import coordinates_waypoint_manager_ros.coordinator as node
+
+if __name__ == '__main__':
+    node.main()
