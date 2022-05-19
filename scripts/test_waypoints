@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+#!/usr/bin/env python
+import rospy
+from sensor_msgs.msg import NavSatFix
+
+class Waypoint(object):
+  def __init__(self, id, latitude, longitude):
+    self.id = id
+    self.latitude = latitude
+    self.longitude = longitude
+
+class SendWaypoints(object):
+
+  def __init__(self):
+    rospy.init_node('waypoint_list', anonymous=True)
+    # Publishers
+    # Publishes waypoint
+    self.goal_pub = rospy.Publisher('/waypoint_coordinator/goal_request', NavSatFix, queue_size=5)
+    rospy.sleep(0.5)
+
+  def execute(self, waypoint):
+    msg = NavSatFix()
+    msg.latitude = waypoint.latitude
+    msg.longitude = waypoint.longitude
+    rospy.loginfo("Sending goal: " + str(waypoint.latitude) + "; " + str(waypoint.longitude))
+    self.goal_pub.publish(msg)
+
+
+def main():
+  wps = SendWaypoints()
+  # Waypoints List
+  wp_l = []
+  
+  wp_1 = Waypoint(1, 38.54104, -7.961719)
+  wp_l.append(wp_1)
+  
+  wp_2 = Waypoint(2, 38.541149, -7.961716)
+  wp_l.append(wp_2)
+
+  wp_3 = Waypoint(3, 38.541145, -7.961717)
+  wp_l.append(wp_3)
+ 
+  for wp in wp_l:
+      wps.execute(wp)
+
+if __name__ == '__main__':
+    main()

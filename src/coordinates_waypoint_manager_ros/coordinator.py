@@ -39,6 +39,7 @@ class GPSConverter(object):
     self.frame_id = rospy.get_param("goal_frame_id")
     goal_sub_topic_name = rospy.get_param("goal_sub_topic_name")
     goal_pub_topic_name = rospy.get_param("result_pub_topic_name")
+    self.param_goal_queue_ns = "~goal_queue/"
     self.waypoints_list = []
     self.id = 0
 
@@ -56,6 +57,7 @@ class GPSConverter(object):
 
   def execute(self):
     while not rospy.is_shutdown():
+      self.showList()
       # Manage waypoint list
       if len(self.waypoints_list) > 0:
         # Pops the oldest goal to send to move base
@@ -67,12 +69,14 @@ class GPSConverter(object):
         msg = "id:" + str(curr_goal.id) + ";result:" + str(result)
         rospy.loginfo(msg)
         self.goal_pub.publish(String(data=msg))
+
       self.rate.sleep()
 
   def waypoint_pub(self, lat, lon):
+    rospy.loginfo("lat: " + str(lat)+ " ;lon: " + str(lon) + " ; " + self.frame_id)
     utm_conversion = utm.fromLatLong(lat,lon)
     
-    rospy.logdebug(utm_conversion)
+    rospy.loginfo(utm_conversion)
     
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = "utm"
@@ -90,29 +94,39 @@ class GPSConverter(object):
 
       goal.target_pose = tf2_geometry_msgs.do_transform_pose(goal.target_pose, transform)
       #goal.target_pose.pose.position.x = -goal.target_pose.pose.position.x
-      print(goal.target_pose) 
-      goal.target_pose.header.stamp = rospy.Time.now()
-      goal.target_pose.pose.orientation.x = 0.0
-      goal.target_pose.pose.orientation.y = 0.0
-      goal.target_pose.pose.orientation.z = 0.0
-      goal.target_pose.pose.orientation.w = 1.0
-      rospy.loginfo("Goal transformed\n", goal)
-      # Sends the goal to the action server
-      self.mb_client.send_goal(goal)
-      # Waits for the server to finish performing the action.
-      self.mb_client.wait_for_result()
-      # Prints out the result of executing the action
-      return self.mb_client.get_result()
     except:
       rospy.logerr("Couldnt find transform from utm to " + self.frame_id)
       return None
+    rospy.loginfo("Converted")
+    rospy.loginfo(goal.target_pose) 
+    goal.target_pose.header.stamp = rospy.Time.now()
+    goal.target_pose.pose.orientation.x = 0.0
+    goal.target_pose.pose.orientation.y = 0.0
+    goal.target_pose.pose.orientation.z = 0.0
+    goal.target_pose.pose.orientation.w = 1.0
+    rospy.loginfo("Goal transformed")
+
+    # Sends the goal to the action server
+    self.mb_client.send_goal(goal)
+    # Waits for the server to finish performing the action.
+    self.mb_client.wait_for_result()
+    # Prints out the result of executing the action
+    return self.mb_client.get_state()
+
+  def showList(self):
+    if rospy.has_param(self.param_goal_queue_ns):
+      rospy.delete_param(self.param_goal_queue_ns)
+    for goal in self.waypoints_list:
+      name = self.param_goal_queue_ns + "goal" + str(goal.id)
+      rospy.set_param(name, str(goal.latitude) + ";" + str(goal.longitude))
   
   def goalSubCb(self, data):
     self.id += 1
     new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude)
     self.waypoints_list.append(new_waypoint)
+    self.showList()
 
-  def resetCb(self):
+  def resetCb(self, data):
     self.waypoints_list = []
     self.mb_client.cancel_all_goals()
 

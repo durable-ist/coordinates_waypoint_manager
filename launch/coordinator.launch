@@ -2,8 +2,8 @@
 
 <launch>
     <group ns="waypoint_coordinator">
-        <param name="move_base_node" type="string" value="/atrvjr/move_base"/>
-        <param name="goal_frame_id" type="string" value="atrvjr/odom"/>
+        <param name="move_base_node" type="string" value="/jackal0/move_base"/>
+        <param name="goal_frame_id" type="string" value="map"/>
         <param name="goal_sub_topic_name" type="string" value="goal_request"/>
         <param name="result_pub_topic_name" type="string" value="goal_result"/>
 
