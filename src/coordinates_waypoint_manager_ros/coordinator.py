@@ -5,7 +5,7 @@ from geodesy import utm
 import tf2_ros
 import tf2_geometry_msgs
 from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Twist, Vector3
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import String, Empty
 
@@ -39,19 +39,25 @@ class GPSConverter(object):
     self.frame_id = rospy.get_param("goal_frame_id")
     goal_sub_topic_name = rospy.get_param("goal_sub_topic_name")
     goal_pub_topic_name = rospy.get_param("result_pub_topic_name")
+    cmd_vel_topic_name = rospy.get_param("cmd_vel_topic")
     self.param_goal_queue_ns = "~goal_queue/"
     self.waypoints_list = []
     self.id = 0
+    self.curr_goal = None
+    self.pause = False
 
 
     # Publishers
     # Publishes result of goal
     self.goal_pub = rospy.Publisher(goal_pub_topic_name, String, queue_size=5)
+    self.cmd_vel_pub = rospy.Publisher(cmd_vel_topic_name, Twist, queue_size=5)
 
     # Subscribers
     # Subscribes to goal requests
     self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
     self.reset_sub = rospy.Subscriber("reset_waypoints", Empty, self.resetCb)
+    self.pause_sub = rospy.Subscriber("pause", Empty, self.pauseCb)
+    self.play_sub = rospy.Subscriber("play", Empty, self.playCb)
 
     self.rate = rospy.Rate(10)
 
@@ -59,15 +65,19 @@ class GPSConverter(object):
     while not rospy.is_shutdown():
       self.showList()
       # Manage waypoint list
-      if len(self.waypoints_list) > 0:
+      if len(self.waypoints_list) > 0 and not self.pause:
         # Pops the oldest goal to send to move base
         curr_goal = self.waypoints_list.pop(0)
         msg = "id:" + str(curr_goal.id) + ";latitude:" + str(curr_goal.latitude) + ";longitude:" + str(curr_goal.longitude)
+
+        self.curr_goal = curr_goal
+
         rospy.loginfo(msg)
         self.goal_pub.publish(String(data=msg))
         result = self.waypoint_pub(curr_goal.latitude, curr_goal.longitude)
         msg = "id:" + str(curr_goal.id) + ";result:" + str(result)
         rospy.loginfo(msg)
+
         self.goal_pub.publish(String(data=msg))
 
       self.rate.sleep()
@@ -129,6 +139,35 @@ class GPSConverter(object):
   def resetCb(self, data):
     self.waypoints_list = []
     self.mb_client.cancel_all_goals()
+  
+  def pauseCb(self, data):
+    self.pause = True
+    self.mb_client.cancel_all_goals()
+
+    # send cmd velocity 0 to stop for sure
+    cmd_msg = Twist()
+    cmd_msg.linear.x = 0
+    cmd_msg.linear.y = 0
+    cmd_msg.linear.z = 0
+    cmd_msg.angular.x = 0
+    cmd_msg.angular.y = 0
+    cmd_msg.angular.z = 0
+
+    self.goal_pub.publish(String(data="pause"))
+    rospy.logwarn("Movement Paused!")
+
+    time_start = rospy.Time.now()
+
+    # send 0s for x time to force him to stay put while move base stops
+    while rospy.Time.now() - time_start < rospy.Duration(2.5):
+      self.cmd_vel_pub.publish(cmd_msg)
+
+
+  def playCb(self, data):
+    self.waypoints_list.insert(0,self.curr_goal)
+    self.pause = False
+    self.goal_pub.publish(String(data="play"))
+    rospy.logwarn("To infinity and beyond!")
 
 
 def main():

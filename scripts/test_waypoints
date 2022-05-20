@@ -16,7 +16,7 @@ class SendWaypoints(object):
     rospy.init_node('waypoint_list', anonymous=True)
     # Publishers
     # Publishes waypoint
-    self.goal_pub = rospy.Publisher('/waypoint_coordinator/goal_request', NavSatFix, queue_size=5)
+    self.goal_pub = rospy.Publisher('/jackal0/waypoint_coordinator/goal_request', NavSatFix, queue_size=5)
     rospy.sleep(0.5)
 
   def execute(self, waypoint):
