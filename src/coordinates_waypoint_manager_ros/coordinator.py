@@ -2,18 +2,21 @@
 import rospy
 import actionlib
 from geodesy import utm
+import tf
 import tf2_ros
 import tf2_geometry_msgs
-from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import Twist, Vector3
+# from sensor_msgs.msg import NavSatFix
+from geometry_msgs.msg import Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import String, Empty
+from coordinates_waypoint_manager.msg import WaypointRequest
 
 class Waypoint(object):
-  def __init__(self, id, latitude, longitude):
+  def __init__(self, id, latitude, longitude, orientation):
     self.id = id
     self.latitude = latitude
     self.longitude = longitude
+    self.orientation = orientation
 
 class GPSConverter(object):
 
@@ -44,7 +47,7 @@ class GPSConverter(object):
     self.waypoints_list = []
     self.id = 0
     self.curr_goal = None
-    self.pause = True
+    self.pause = False
     self.repush_goal = False
 
 
@@ -55,7 +58,8 @@ class GPSConverter(object):
 
     # Subscribers
     # Subscribes to goal requests
-    self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
+    # self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
+    self.goal_sub = rospy.Subscriber(goal_sub_topic_name, WaypointRequest, self.goalSubCb)
     self.reset_sub = rospy.Subscriber("reset_waypoints", Empty, self.resetCb)
     self.pause_sub = rospy.Subscriber("pause", Empty, self.pauseCb)
     self.play_sub = rospy.Subscriber("play", Empty, self.playCb)
@@ -69,14 +73,14 @@ class GPSConverter(object):
       if len(self.waypoints_list) > 0 and not self.pause:
         # Pops the oldest goal to send to move base
         curr_goal = self.waypoints_list.pop(0)
-        msg = "id:" + str(curr_goal.id) + ";latitude:" + str(curr_goal.latitude) + ";longitude:" + str(curr_goal.longitude)
+        msg = "id:" + str(curr_goal.id) + ";latitude:" + str(curr_goal.latitude) + ";longitude:" + str(curr_goal.longitude) + ";orientation:" + str(curr_goal.orientation)
 
         rospy.loginfo(msg)
         self.goal_pub.publish(String(data=msg))
         
         self.curr_goal = curr_goal
         self.repush_goal = True
-        result = self.waypoint_pub(curr_goal.latitude, curr_goal.longitude)
+        result = self.waypoint_pub(curr_goal.latitude, curr_goal.longitude, curr_goal.orientation)
 
         msg = "id:" + str(curr_goal.id) + ";result:" + str(result)
         rospy.loginfo(msg)
@@ -87,12 +91,12 @@ class GPSConverter(object):
 
       self.rate.sleep()
 
-  def waypoint_pub(self, lat, lon):
+  def waypoint_pub(self, lat, lon, orientation):
     rospy.loginfo("lat: " + str(lat)+ " ;lon: " + str(lon) + " ; " + self.frame_id)
     utm_conversion = utm.fromLatLong(lat,lon)
-    
-    rospy.loginfo(utm_conversion)
-    
+
+    # rospy.loginfo(utm_conversion)
+
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = "utm"
     goal.target_pose.header.stamp = rospy.Time.now()
@@ -113,13 +117,18 @@ class GPSConverter(object):
       rospy.logerr("Couldnt find transform from utm to " + self.frame_id)
       return None
     rospy.loginfo("Converted")
-    rospy.loginfo(goal.target_pose) 
+    rospy.loginfo(goal.target_pose)
+
+    # convert orientation to quaternion
+    quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, orientation)
+
     goal.target_pose.header.stamp = rospy.Time.now()
-    goal.target_pose.pose.orientation.x = 0.0
-    goal.target_pose.pose.orientation.y = 0.0
-    goal.target_pose.pose.orientation.z = 0.0
-    goal.target_pose.pose.orientation.w = 1.0
-    rospy.loginfo("Goal transformed")
+    goal.target_pose.pose.orientation.x = quaternion[0]
+    goal.target_pose.pose.orientation.y = quaternion[1]
+    goal.target_pose.pose.orientation.z = quaternion[2]
+    goal.target_pose.pose.orientation.w = quaternion[3]
+    # rospy.loginfo("Goal transformed")
+    # rospy.loginfo(goal)
 
     # Sends the goal to the action server
     self.mb_client.send_goal(goal)
@@ -137,7 +146,7 @@ class GPSConverter(object):
   
   def goalSubCb(self, data):
     self.id += 1
-    new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude)
+    new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude, orientation=data.orientation)
     self.waypoints_list.append(new_waypoint)
     self.showList()
 
