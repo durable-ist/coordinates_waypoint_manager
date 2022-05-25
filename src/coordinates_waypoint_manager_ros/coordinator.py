@@ -147,6 +147,8 @@ class GPSConverter(object):
   def goalSubCb(self, data):
     self.id += 1
     new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude, orientation=data.orientation)
+    msg = "goal_accepted:" + str(self.id)
+    self.goal_pub.publish(msg)
     self.waypoints_list.append(new_waypoint)
     self.showList()
 
@@ -167,7 +169,7 @@ class GPSConverter(object):
     cmd_msg.angular.y = 0
     cmd_msg.angular.z = 0
 
-    self.goal_pub.publish(String(data="Reset"))
+    self.goal_pub.publish(String(data="reset"))
     rospy.logwarn("Waypoint List Cleared!")
 
     time_start = rospy.Time.now()
