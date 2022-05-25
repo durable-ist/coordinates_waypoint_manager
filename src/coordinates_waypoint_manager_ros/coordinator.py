@@ -44,7 +44,8 @@ class GPSConverter(object):
     self.waypoints_list = []
     self.id = 0
     self.curr_goal = None
-    self.pause = False
+    self.pause = True
+    self.repush_goal = False
 
 
     # Publishers
@@ -70,15 +71,19 @@ class GPSConverter(object):
         curr_goal = self.waypoints_list.pop(0)
         msg = "id:" + str(curr_goal.id) + ";latitude:" + str(curr_goal.latitude) + ";longitude:" + str(curr_goal.longitude)
 
-        self.curr_goal = curr_goal
-
         rospy.loginfo(msg)
         self.goal_pub.publish(String(data=msg))
+        
+        self.curr_goal = curr_goal
+        self.repush_goal = True
         result = self.waypoint_pub(curr_goal.latitude, curr_goal.longitude)
+
         msg = "id:" + str(curr_goal.id) + ";result:" + str(result)
         rospy.loginfo(msg)
 
         self.goal_pub.publish(String(data=msg))
+      elif len(self.waypoints_list) == 0 and self.repush_goal and not self.pause:
+        self.repush_goal = False
 
       self.rate.sleep()
 
@@ -139,6 +144,29 @@ class GPSConverter(object):
   def resetCb(self, data):
     self.waypoints_list = []
     self.mb_client.cancel_all_goals()
+    # Clear goal params
+    self.showList()
+
+    self.pause = True
+
+    # send cmd velocity 0 to stop for sure
+    cmd_msg = Twist()
+    cmd_msg.linear.x = 0
+    cmd_msg.linear.y = 0
+    cmd_msg.linear.z = 0
+    cmd_msg.angular.x = 0
+    cmd_msg.angular.y = 0
+    cmd_msg.angular.z = 0
+
+    self.goal_pub.publish(String(data="Reset"))
+    rospy.logwarn("Waypoint List Cleared!")
+
+    time_start = rospy.Time.now()
+
+    # send 0s for x time to force him to stay put while move base stops
+    while rospy.Time.now() - time_start < rospy.Duration(2.5):
+      self.cmd_vel_pub.publish(cmd_msg)
+
   
   def pauseCb(self, data):
     self.pause = True
@@ -164,7 +192,9 @@ class GPSConverter(object):
 
 
   def playCb(self, data):
-    self.waypoints_list.insert(0,self.curr_goal)
+    if self.repush_goal:
+      self.waypoints_list.insert(0,self.curr_goal)
+      self.repush_goal = False
     self.pause = False
     self.goal_pub.publish(String(data="play"))
     rospy.logwarn("To infinity and beyond!")
