@@ -2,8 +2,8 @@
 
 <launch>
     <group ns="waypoint_coordinator">
-        <param name="move_base_node" type="string" value="/jackal0/move_base"/>
-        <param name="cmd_vel_topic" type="string" value="/jackal0/jackal_velocity_controller/cmd_vel"/>
+        <param name="move_base_node" type="string" value="/move_base"/>
+        <param name="cmd_vel_topic" type="string" value="/rflex/atrvjr_node/cmd_vel"/>
 
         <param name="goal_frame_id" type="string" value="map"/>
         <param name="goal_sub_topic_name" type="string" value="goal_request"/>

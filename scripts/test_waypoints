@@ -16,7 +16,7 @@ class SendWaypoints(object):
     rospy.init_node('waypoint_list', anonymous=True)
     # Publishers
     # Publishes waypoint
-    self.goal_pub = rospy.Publisher('/jackal0/waypoint_coordinator/goal_request', NavSatFix, queue_size=5)
+    self.goal_pub = rospy.Publisher('/waypoint_coordinator/goal_request', NavSatFix, queue_size=5)
     rospy.sleep(0.5)
 
   def execute(self, waypoint):
@@ -32,14 +32,27 @@ def main():
   # Waypoints List
   wp_l = []
   
-  wp_1 = Waypoint(1, 38.54104, -7.961719)
+  # Waypoint List (central alameda)
+  wp_1 = Waypoint(1, 38.7367705667847, -9.13759324059514)
   wp_l.append(wp_1)
   
-  wp_2 = Waypoint(2, 38.541149, -7.961716)
+  wp_2 = Waypoint(2, 38.736868377102226, -9.137488634441356)
   wp_l.append(wp_2)
 
-  wp_3 = Waypoint(3, 38.541145, -7.961717)
+  wp_3 = Waypoint(3, 38.73694840362603, -9.13761201605864)
   wp_l.append(wp_3)
+
+
+  #Alternative Waypoint List (right-side alameda)
+  # wp_1 = Waypoint(1, 38.7370090772706, -9.137950644953905)
+  # wp_l.append(wp_1)
+  
+  # wp_2 = Waypoint(2, 38.7370242456737, -9.13772064552603)
+  # wp_l.append(wp_2)
+
+  # wp_3 = Waypoint(3, 38.737030522253335, -9.137618721581319)
+  # wp_l.append(wp_3)
+
  
   for wp in wp_l:
       wps.execute(wp)
