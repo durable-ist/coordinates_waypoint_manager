@@ -103,7 +103,7 @@ class GPSConverter(object):
     goal.target_pose.pose.position.x = utm_conversion.easting
     goal.target_pose.pose.position.y = utm_conversion.northing
     goal.target_pose.pose.position.z = 0
-    goal.target_pose.pose.orientation.w = 0.0
+    #goal.target_pose.pose.orientation.w = 0.0
 
     try:
       transform = self.tf_buffer.lookup_transform(self.frame_id,
