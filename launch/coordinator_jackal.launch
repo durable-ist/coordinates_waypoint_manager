@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<launch>
+    <group ns="waypoint_coordinator">
+        <param name="move_base_node" type="string" value="/move_base"/>
+        <param name="cmd_vel_topic" type="string" value="/cmd_vel"/>
+
+        <param name="goal_frame_id" type="string" value="map"/>
+        <param name="goal_sub_topic_name" type="string" value="goal_request"/>
+        <param name="result_pub_topic_name" type="string" value="goal_result"/>
+
+        <node name="waypoint_controller" pkg="coordinates_waypoint_manager" type="coordinator.py" output="screen"/>
+    </group>
+</launch>
