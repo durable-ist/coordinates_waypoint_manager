@@ -5,7 +5,7 @@ from geodesy import utm
 import tf
 import tf2_ros
 import tf2_geometry_msgs
-# from sensor_msgs.msg import NavSatFix
+from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import String, Empty
@@ -47,7 +47,7 @@ class GPSConverter(object):
     self.waypoints_list = []
     self.id = 0
     self.curr_goal = None
-    self.pause = False
+    self.pause = True
     self.repush_goal = False
 
 
@@ -58,8 +58,8 @@ class GPSConverter(object):
 
     # Subscribers
     # Subscribes to goal requests
-    # self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
-    self.goal_sub = rospy.Subscriber(goal_sub_topic_name, WaypointRequest, self.goalSubCb)
+    self.goal_sub = rospy.Subscriber(goal_sub_topic_name, NavSatFix, self.goalSubCb)
+    # self.goal_sub = rospy.Subscriber(goal_sub_topic_name, WaypointRequest, self.goalSubCb)
     self.reset_sub = rospy.Subscriber("reset_waypoints", Empty, self.resetCb)
     self.pause_sub = rospy.Subscriber("pause", Empty, self.pauseCb)
     self.play_sub = rospy.Subscriber("play", Empty, self.playCb)
@@ -91,7 +91,7 @@ class GPSConverter(object):
 
       self.rate.sleep()
 
-  def waypoint_pub(self, lat, lon, orientation):
+  def waypoint_pub(self, lat, lon, orientation=-1.57):
     rospy.loginfo("lat: " + str(lat)+ " ;lon: " + str(lon) + " ; " + self.frame_id)
     utm_conversion = utm.fromLatLong(lat,lon)
 
@@ -146,7 +146,7 @@ class GPSConverter(object):
   
   def goalSubCb(self, data):
     self.id += 1
-    new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude, orientation=data.orientation)
+    new_waypoint = Waypoint(id=self.id, latitude=data.latitude, longitude=data.longitude, orientation=-1.57)
     msg = "goal_accepted:" + str(self.id)
     self.goal_pub.publish(msg)
     self.waypoints_list.append(new_waypoint)
